@@ -1,1 +1,1510 @@
+import React, { useState } from 'react';
 
+// ==========================================
+// 🤖 Gemini API連携設定
+// ==========================================
+const apiKey = "";
+
+async function callGeminiAPI(prompt, systemInstructionText = null) {
+  if (!apiKey) return "※APIキーが設定されていないため、AI機能は使えません。";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+  
+  const payload = {
+    contents: [{ parts: [{ text: prompt }] }],
+  };
+  
+  if (systemInstructionText) {
+    payload.systemInstruction = {
+      parts: [{ text: systemInstructionText }]
+    };
+  }
+
+  let retries = 5;
+  let delay = 1000;
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const data = await response.json();
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || "テキストの生成に失敗しました。";
+    } catch (error) {
+      if (i === retries - 1) return "通信エラーが発生しました。時間を置いて再度お試しください。";
+      await new Promise(res => setTimeout(res, delay));
+      delay *= 2;
+    }
+  }
+}
+
+// ==========================================
+// 📝 データ定義（ここに情報を追加・編集します）
+// ==========================================
+
+const ELEMENTS = {
+  PYRO: { id: 'Pyro', name: '炎', color: 'bg-red-500', border: 'border-red-500', text: 'text-red-600', bgLight: 'bg-red-50', icon: '🔥', sceneUrl: 'https://images.unsplash.com/photo-1519069502621-e0c3b0eb6ff6?auto=format&fit=crop&q=80&w=800' },
+  HYDRO: { id: 'Hydro', name: '水', color: 'bg-blue-500', border: 'border-blue-500', text: 'text-blue-600', bgLight: 'bg-blue-50', icon: '💧', sceneUrl: 'https://images.unsplash.com/photo-1527066236129-cbaf7f20184b?auto=format&fit=crop&q=80&w=800' },
+  ANEMO: { id: 'Anemo', name: '風', color: 'bg-teal-400', border: 'border-teal-400', text: 'text-teal-600', bgLight: 'bg-teal-50', icon: '🌪️', sceneUrl: 'https://images.unsplash.com/photo-1444703686981-a3abbc4d4fe3?auto=format&fit=crop&q=80&w=800' },
+  ELECTRO: { id: 'Electro', name: '雷', color: 'bg-purple-500', border: 'border-purple-500', text: 'text-purple-600', bgLight: 'bg-purple-50', icon: '⚡', sceneUrl: 'https://images.unsplash.com/photo-1536697246787-1f27409bc272?auto=format&fit=crop&q=80&w=800' },
+  DENDRO: { id: 'Dendro', name: '草', color: 'bg-green-500', border: 'border-green-500', text: 'text-green-600', bgLight: 'bg-green-50', icon: '🌿', sceneUrl: 'https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?auto=format&fit=crop&q=80&w=800' },
+  CRYO: { id: 'Cryo', name: '氷', color: 'bg-cyan-400', border: 'border-cyan-400', text: 'text-cyan-600', bgLight: 'bg-cyan-50', icon: '❄️', sceneUrl: 'https://images.unsplash.com/photo-1483664852095-d6cc6870702d?auto=format&fit=crop&q=80&w=800' },
+  GEO: { id: 'Geo', name: '岩', color: 'bg-yellow-600', border: 'border-yellow-600', text: 'text-yellow-700', bgLight: 'bg-yellow-50', icon: '🪨', sceneUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=800' },
+};
+
+const WEAPONS = {
+  SWORD: { id: 'Sword', name: '片手剣', icon: '🗡️' },
+  CLAYMORE: { id: 'Claymore', name: '両手剣', icon: '⚔️' },
+  POLEARM: { id: 'Polearm', name: '長柄武器', icon: '🔱' },
+  BOW: { id: 'Bow', name: '弓', icon: '🏹' },
+  CATALYST: { id: 'Catalyst', name: '法器', icon: '📖' },
+};
+
+const MATERIALS = {
+  FREEDOM: '「自由」の教え', RESISTANCE: '「抗争」の教え', BALLAD: '「詩文」の教え',
+  PROSPERITY: '「繁栄」の教え', DILIGENCE: '「勤労」の教え', GOLD: '「黄金」の教え',
+  TRANSIENCE: '「浮世」の教え', ELEGANCE: '「風雅」の教え', LIGHT: '「天光」の教え',
+  ADMONITION: '「忠言」の教え', INGENUITY: '「巧み」の教え', PRAXIS: '「篤行」の教え',
+  EQUITY: '「公平」の教え', JUSTICE: '「正義」の教え', ORDER: '「秩序」の教え',
+};
+
+const CHARACTER_DB = [
+  // --- 炎元素 (PYRO) ---
+  {
+    id: 'bennett', name: 'ベネット', element: ELEMENTS.PYRO, weapon: WEAPONS.SWORD, releaseYear: 2020, rarity: 4, role: 'サポーター / ヒーラー', recommendRank: 'SS', avatar: '👍',
+    reason: '圧倒的な攻撃力バフと回復を併せ持つ、最強クラスの星4サポーター。どのパーティに入れても活躍できるため、最優先で育成すべきキャラクター。',
+    talentMaterial: MATERIALS.RESISTANCE, bestWeapon: '天空の刃 / 原木刀 / 腐植の剣', bestArtifact: '旧貴族のしつけ 4セット',
+    artifactStats: { main: '時計: 元チャ / 杯: HP% / 冠: 治癒効果', sub: '元チャ > HP% > 固定HP' }
+  },
+  {
+    id: 'xiangling', name: '香菱 (シャンリン)', element: ELEMENTS.PYRO, weapon: WEAPONS.POLEARM, releaseYear: 2020, rarity: 4, role: 'サブアタッカー', recommendRank: 'S', avatar: '🐻',
+    reason: '元素爆発が控えにいても継続して炎元素ダメージを与え続けるため、元素反応の起点として非常に強力。配布キャラでありながらエンドコンテンツでも大活躍。',
+    talentMaterial: MATERIALS.DILIGENCE, bestWeapon: '草薙の稲光 / 漁獲 / 西風長槍', bestArtifact: '絶縁の旗印 4セット',
+    artifactStats: { main: '時計: 元チャ / 杯: 炎バフ / 冠: 会心系', sub: '元チャ > 会心系 > 熟知 > 攻撃%' }
+  },
+  {
+    id: 'hutao', name: '胡桃 (フータオ)', element: ELEMENTS.PYRO, weapon: WEAPONS.POLEARM, releaseYear: 2021, rarity: 5, role: 'メインアタッカー', recommendRank: 'S', avatar: '👻',
+    reason: '自身のHPを消費して圧倒的な高火力を出す炎アタッカー。行秋や夜蘭と組み合わせた蒸発編成が非常に強力。',
+    talentMaterial: MATERIALS.DILIGENCE, bestWeapon: '護摩の杖 / 匣中滅龍 / フィヨルドの歌', bestArtifact: '燃え盛る炎の魔女 4セット / 追憶のしめ縄 4セット',
+    artifactStats: { main: '時計: HP% or 熟知 / 杯: 炎バフ / 冠: 会心系', sub: '会心系 > 熟知 > HP% > 攻撃%' }
+  },
+  {
+    id: 'yoimiya', name: '宵宮 (ヨイミヤ)', element: ELEMENTS.PYRO, weapon: WEAPONS.BOW, releaseYear: 2021, rarity: 5, role: 'メインアタッカー', recommendRank: 'S', avatar: '🎇',
+    reason: '通常攻撃主体で戦う炎弓アタッカー。遠距離から安定してダメージを出せるため、単体のボスや空中の敵に対して非常に扱いやすい。',
+    talentMaterial: MATERIALS.TRANSIENCE, bestWeapon: '飛雷の鳴弦 / 弓蔵', bestArtifact: '追憶のしめ縄 4セット / 来歆の余響 4セット',
+    artifactStats: { main: '時計: 攻撃% / 杯: 炎バフ / 冠: 会心系', sub: '会心系 > 攻撃% > 熟知 > 元チャ' }
+  },
+  {
+    id: 'diluc', name: 'ディルック', element: ELEMENTS.PYRO, weapon: WEAPONS.CLAYMORE, releaseYear: 2020, rarity: 5, role: 'メインアタッカー', recommendRank: 'A', avatar: '🦅',
+    reason: '初期からいる恒常星5アタッカー。操作が非常にシンプルで扱いやすく、大剣による採掘もできるため初心者の探索・戦闘に最適。',
+    talentMaterial: MATERIALS.RESISTANCE, bestWeapon: '狼の末路 / 螭龍の剣', bestArtifact: '燃え盛る炎の魔女 4セット',
+    artifactStats: { main: '時計: 攻撃% or 熟知 / 杯: 炎バフ / 冠: 会心系', sub: '会心系 > 熟知 > 攻撃% > 元チャ' }
+  },
+  {
+    id: 'klee', name: 'クレー', element: ELEMENTS.PYRO, weapon: WEAPONS.CATALYST, releaseYear: 2020, rarity: 5, role: 'メインアタッカー', recommendRank: 'A', avatar: '💣',
+    reason: '爆弾を投げつけて戦う法器アタッカー。重撃の火力が非常に高いが、スタミナ管理や操作感に少し癖がある。',
+    talentMaterial: MATERIALS.FREEDOM, bestWeapon: '四風原典 / 流浪楽章', bestArtifact: '燃え盛る炎の魔女 4セット',
+    artifactStats: { main: '時計: 攻撃% / 杯: 炎バフ / 冠: 会心系', sub: '会心系 > 攻撃% > 元チャ' }
+  },
+  {
+    id: 'arlecchino', name: 'アルレッキーノ', element: ELEMENTS.PYRO, weapon: WEAPONS.POLEARM, releaseYear: 2024, rarity: 5, role: 'メインアタッカー', recommendRank: 'SS', avatar: '🌙',
+    reason: '「命の契約」を付与・消費して戦う超高火力アタッカー。他者からの回復を受け付けない制限はあるが、自己回復と圧倒的な殲滅力を持つ。',
+    talentMaterial: MATERIALS.ORDER, bestWeapon: '赤月のシルエット / 和璞鳶', bestArtifact: '諧律奇想の断章 4セット / 剣闘士のフィナーレ 4セット',
+    artifactStats: { main: '時計: 攻撃% / 杯: 炎バフ / 冠: 会心系', sub: '会心系 > 攻撃% > 元チャ' }
+  },
+
+  // --- 水元素 (HYDRO) ---
+  {
+    id: 'xingqiu', name: '行秋 (ユクアキ)', element: ELEMENTS.HYDRO, weapon: WEAPONS.SWORD, releaseYear: 2020, rarity: 4, role: 'サブアタッカー', recommendRank: 'SS', avatar: '📖',
+    reason: '元素爆発による水元素の追撃が極めて優秀。炎キャラの蒸発反応や、氷キャラの凍結反応をサポートする上で欠かせない存在。ダメージ軽減や微回復も持つ。',
+    talentMaterial: MATERIALS.GOLD, bestWeapon: '祭礼の剣 / 西風剣', bestArtifact: '絶縁の旗印 4セット / 沈淪2+旧貴族2',
+    artifactStats: { main: '時計: 攻撃% or 元チャ / 杯: 水バフ / 冠: 会心系', sub: '元チャ > 会心系 > 攻撃%' }
+  },
+  {
+    id: 'yelan', name: '夜蘭 (イェラン)', element: ELEMENTS.HYDRO, weapon: WEAPONS.BOW, releaseYear: 2022, rarity: 5, role: 'サブアタッカー', recommendRank: 'SS', avatar: '🎲',
+    reason: '行秋の上位互換とも言える強力な水元素追撃に加え、味方へのダメージバフ、さらには探索での高速移動スキルを持つ超優秀キャラクター。',
+    talentMaterial: MATERIALS.PROSPERITY, bestWeapon: '若水 / 西風猟弓 / 祭礼の弓', bestArtifact: '絶縁の旗印 4セット',
+    artifactStats: { main: '時計: HP% or 元チャ / 杯: 水バフ / 冠: 会心系', sub: '元チャ > 会心系 > HP%' }
+  },
+  {
+    id: 'tartaglia', name: 'タルタリヤ', element: ELEMENTS.HYDRO, weapon: WEAPONS.BOW, releaseYear: 2020, rarity: 5, role: 'メインアタッカー', recommendRank: 'S', avatar: '🐳',
+    reason: '弓キャラでありながら、スキルで双剣モード（近接）に切り替えて戦う。敵が密集しているときの「断流」による連続範囲ダメージが非常に爽快。',
+    talentMaterial: MATERIALS.FREEDOM, bestWeapon: '冬極の白星 / 弓蔵', bestArtifact: '沈淪の心 4セット / 水仙の夢 4セット',
+    artifactStats: { main: '時計: 攻撃% / 杯: 水バフ / 冠: 会心系', sub: '会心系 > 攻撃% > 元チャ > 熟知' }
+  },
+  {
+    id: 'kokomi', name: '珊瑚宮心海 (ココミ)', element: ELEMENTS.HYDRO, weapon: WEAPONS.CATALYST, releaseYear: 2021, rarity: 5, role: 'ヒーラー / サポーター', recommendRank: 'SS', avatar: '🐟',
+    reason: '圧倒的な回復量と、広範囲への安定した水付着能力を持つ。凍結パーティや開花パーティの要として、高難易度コンテンツで極めて高い採用率を誇る。',
+    talentMaterial: MATERIALS.TRANSIENCE, bestWeapon: '不滅の月華 / 龍殺しの英傑譚 / 金珀・試作', bestArtifact: '海染硨磲 4セット / 千岩牢固 4セット',
+    artifactStats: { main: '時計: HP% / 杯: HP% or 水バフ / 冠: 治癒効果', sub: 'HP% > 元チャ > 固定HP (会心は不要)' }
+  },
+  {
+    id: 'neuvillette', name: 'ヌヴィレット', element: ELEMENTS.HYDRO, weapon: WEAPONS.CATALYST, releaseYear: 2023, rarity: 5, role: 'メインアタッカー', recommendRank: 'SS', avatar: '⚖️',
+    reason: '極太の水レーザー（特殊重撃）で敵の群れをなぎ払う最強クラスのアタッカー。火力、範囲、自己回復の全てを兼ね備え、単騎での戦闘すら容易にこなす。',
+    talentMaterial: MATERIALS.EQUITY, bestWeapon: '久遠流転の大典 / 金珀・試作', bestArtifact: 'ファントムハンター 4セット',
+    artifactStats: { main: '時計: HP% / 杯: 水バフ or HP% / 冠: 会心系 or HP%', sub: '会心系 > HP% > 元チャ' }
+  },
+  {
+    id: 'furina', name: 'フリーナ', element: ELEMENTS.HYDRO, weapon: WEAPONS.SWORD, releaseYear: 2023, rarity: 5, role: 'サブアタッカー / バッファー', recommendRank: 'SS', avatar: '🎩',
+    reason: '味方全体のHP増減をトリガーに、超強力なダメージバフを配る最強サポーターの一人。裏からの水属性追撃ダメージも非常に高く、水上歩行も可能。',
+    talentMaterial: MATERIALS.JUSTICE, bestWeapon: '静水流転の輝き / 腐植の剣 / サーンドルの渡し守', bestArtifact: '黄金の劇団 4セット',
+    artifactStats: { main: '時計: HP% or 元チャ / 杯: HP% or 水バフ / 冠: 会心系 or HP%', sub: '元チャ > 会心系 > HP%' }
+  },
+
+  // --- 風元素 (ANEMO) ---
+  {
+    id: 'kazuha', name: '楓原万葉 (カズハ)', element: ELEMENTS.ANEMO, weapon: WEAPONS.SWORD, releaseYear: 2021, rarity: 5, role: 'サポーター', recommendRank: 'SS', avatar: '🍁',
+    reason: '敵を集めるスキルと、味方の元素ダメージを大幅に上昇させる強力なバフを持つ。探索でもジャンプスキルが便利で、あらゆる面で最高峰のサポーター。',
+    talentMaterial: MATERIALS.DILIGENCE, bestWeapon: '蒼古なる自由への誓い / 鉄蜂の刺し / サイフォスの月明かり', bestArtifact: '翠緑の影 4セット',
+    artifactStats: { main: '時計: 熟知 or 元チャ / 杯: 熟知 / 冠: 熟知', sub: '元チャ > 熟知 > 攻撃%' }
+  },
+  {
+    id: 'venti', name: 'ウェンティ', element: ELEMENTS.ANEMO, weapon: WEAPONS.BOW, releaseYear: 2020, rarity: 5, role: 'サポーター', recommendRank: 'S', avatar: '🍷',
+    reason: '元素爆発によるダイソン並みのブラックホール集敵能力が最大の特徴。小型の敵が大量に出現する秘境やイベントにおいて、右に出る者はいない。',
+    talentMaterial: MATERIALS.BALLAD, bestWeapon: '終焉を嘆く詩 / 絶弦', bestArtifact: '翠緑の影 4セット',
+    artifactStats: { main: '時計: 攻撃% or 元チャ / 杯: 風バフ / 冠: 会心系', sub: '会心系 > 元チャ > 攻撃% > 熟知' }
+  },
+  {
+    id: 'jean', name: 'ジン', element: ELEMENTS.ANEMO, weapon: WEAPONS.SWORD, releaseYear: 2020, rarity: 5, role: 'ヒーラー / サポーター', recommendRank: 'A', avatar: '🗡️',
+    reason: '瞬時にパーティ全体を大幅回復できるヒーラー。翠緑デバフを配りつつ全体回復ができるため、フリーナとの相性が極めて良く評価が再上昇している。',
+    talentMaterial: MATERIALS.RESISTANCE, bestWeapon: '蒼古なる自由への誓い / 天目影打 / 西風剣', bestArtifact: '翠緑の影 4セット',
+    artifactStats: { main: '時計: 攻撃% or 元チャ / 杯: 攻撃% or 風バフ / 冠: 治癒効果 or 会心系', sub: '元チャ > 攻撃% > 会心系' }
+  },
+  {
+    id: 'xiao', name: '魈 (ショウ)', element: ELEMENTS.ANEMO, weapon: WEAPONS.POLEARM, releaseYear: 2021, rarity: 5, role: 'メインアタッカー', recommendRank: 'S', avatar: '👹',
+    reason: '元素爆発中、ジャンプ力が強化され連続落下攻撃で広範囲に大ダメージを与え続ける風アタッカー。専用のバッファー（ファルザン）と組むと化ける。',
+    talentMaterial: MATERIALS.PROSPERITY, bestWeapon: '和璞鳶 / 護摩の杖', bestArtifact: '辰砂往生録 4セット / ファントムハンター 4セット',
+    artifactStats: { main: '時計: 攻撃% / 杯: 風バフ / 冠: 会心系', sub: '会心系 > 攻撃% > 元チャ' }
+  },
+  {
+    id: 'wanderer', name: '放浪者', element: ELEMENTS.ANEMO, weapon: WEAPONS.CATALYST, releaseYear: 2022, rarity: 5, role: 'メインアタッカー', recommendRank: 'S', avatar: '🎐',
+    reason: 'スキルで空中に浮遊しながら通常攻撃・重撃を連打するアタッカー。浮遊による空中移動が探索において最高クラスの快適性を誇る。',
+    talentMaterial: MATERIALS.PRAXIS, bestWeapon: 'トゥイトゥーラの記憶 / 流浪楽章', bestArtifact: '砂上楼閣の史話 4セット / 追憶のしめ縄 4セット',
+    artifactStats: { main: '時計: 攻撃% / 杯: 風バフ / 冠: 会心系', sub: '会心系 > 攻撃% > 元チャ' }
+  },
+  {
+    id: 'sucrose', name: 'スクロース', element: ELEMENTS.ANEMO, weapon: WEAPONS.CATALYST, releaseYear: 2020, rarity: 4, role: 'サポーター', recommendRank: 'S', avatar: '🧪',
+    reason: '味方に元素熟知を大量に配れる風サポーター。万葉を持っていない場合の強力な代用になるほか、感電パーティ等では自身がメインで殴る編成も強い。',
+    talentMaterial: MATERIALS.FREEDOM, bestWeapon: '祭礼の断片 / 魔導緒論', bestArtifact: '翠緑の影 4セット',
+    artifactStats: { main: '時計: 熟知 or 元チャ / 杯: 熟知 / 冠: 熟知', sub: '元チャ > 熟知 > 攻撃%' }
+  },
+
+  // --- 雷元素 (ELECTRO) ---
+  {
+    id: 'raiden', name: '雷電将軍', element: ELEMENTS.ELECTRO, weapon: WEAPONS.POLEARM, releaseYear: 2021, rarity: 5, role: 'アタッカー / サポーター', recommendRank: 'S', avatar: '⚡',
+    reason: '味方全体の元素エネルギーを回復させる独自の能力を持つ。自身も強力なアタッカーとして活躍し、特に元素爆発主体のパーティで輝く。',
+    talentMaterial: MATERIALS.LIGHT, bestWeapon: '草薙の稲光 / 漁獲', bestArtifact: '絶縁の旗印 4セット',
+    artifactStats: { main: '時計: 元チャ / 杯: 雷バフ or 攻撃% / 冠: 会心系', sub: '会心系 > 元チャ > 攻撃%' }
+  },
+  {
+    id: 'keqing', name: '刻晴 (コクセイ)', element: ELEMENTS.ELECTRO, weapon: WEAPONS.SWORD, releaseYear: 2020, rarity: 5, role: 'メインアタッカー', recommendRank: 'A', avatar: '⚔️',
+    reason: '機動力が高く、スタイリッシュに戦う恒常の雷アタッカー。草元素の追加により「激化」パーティの適性が高く、火力が大幅に向上した。',
+    talentMaterial: MATERIALS.PROSPERITY, bestWeapon: '霧切の廻光 / 匣中龍吟 / 黎明の神剣', bestArtifact: '雷のような怒り 4セット',
+    artifactStats: { main: '時計: 攻撃% / 杯: 雷バフ / 冠: 会心系', sub: '会心系 > 攻撃% > 熟知' }
+  },
+  {
+    id: 'yaemiko', name: '八重神子 (ヤエミコ)', element: ELEMENTS.ELECTRO, weapon: WEAPONS.CATALYST, releaseYear: 2022, rarity: 5, role: 'サブアタッカー', recommendRank: 'S', avatar: '🦊',
+    reason: 'スキルで殺生櫻を3つ設置し、自動で雷ダメージを与え続ける。草元素キャラと組ませた「激化」編成の裏から火力を出すサブアタッカーとして極めて優秀。',
+    talentMaterial: MATERIALS.LIGHT, bestWeapon: '神楽の真意 / 流浪楽章', bestArtifact: '黄金の劇団 4セット / 金メッキの夢 4セット',
+    artifactStats: { main: '時計: 攻撃% or 熟知 / 杯: 雷バフ / 冠: 会心系', sub: '会心系 > 攻撃% = 熟知 > 元チャ' }
+  },
+  {
+    id: 'cyno', name: 'セノ', element: ELEMENTS.ELECTRO, weapon: WEAPONS.POLEARM, releaseYear: 2022, rarity: 5, role: 'メインアタッカー', recommendRank: 'A', avatar: '🐺',
+    reason: '元素爆発を発動すると長時間アタッカーモードになり、タイミングよくスキルを撃つことで高火力を出す。激化と超開花を組み合わせた編成が強力。',
+    talentMaterial: MATERIALS.ADMONITION, bestWeapon: '赤砂の杖 / 白纓槍', bestArtifact: '金メッキの夢 4セット / 雷のような怒り 4セット',
+    artifactStats: { main: '時計: 熟知 / 杯: 雷バフ / 冠: 会心系', sub: '会心系 > 熟知 > 元チャ > 攻撃%' }
+  },
+  {
+    id: 'fischl', name: 'フィッシュル', element: ELEMENTS.ELECTRO, weapon: WEAPONS.BOW, releaseYear: 2020, rarity: 4, role: 'サブアタッカー', recommendRank: 'SS', avatar: '🐦',
+    reason: 'カラスのオズを設置するだけで、裏から継続的に雷元素ダメージと大量のエネルギー粒子を生成する超優秀な星4キャラ。激化パーティとの相性が抜群。',
+    talentMaterial: MATERIALS.BALLAD, bestWeapon: '若水 / 絶弦 / 絶弓', bestArtifact: '黄金の劇団 4セット',
+    artifactStats: { main: '時計: 攻撃% / 杯: 雷バフ / 冠: 会心系', sub: '会心系 > 攻撃% > 熟知' }
+  },
+  {
+    id: 'kuki', name: '久岐忍 (クキシノブ)', element: ELEMENTS.ELECTRO, weapon: WEAPONS.SWORD, releaseYear: 2022, rarity: 4, role: 'ヒーラー / サポーター', recommendRank: 'SS', avatar: '🥷',
+    reason: 'スキルで回復しつつ周囲の敵に雷を付着する。元素熟知特化で育成し、「超開花」パーティの起爆役兼ヒーラーとして採用すると最強クラスのコスパと火力を誇る。',
+    talentMaterial: MATERIALS.ELEGANCE, bestWeapon: '聖顕の鍵 / 鉄蜂の刺し / 傘剣', bestArtifact: '金メッキの夢 4セット / 楽園の絶花 4セット',
+    artifactStats: { main: '時計: 熟知 / 杯: 熟知 / 冠: 熟知', sub: '熟知 > HP% > 元チャ' }
+  },
+
+  // --- 草元素 (DENDRO) ---
+  {
+    id: 'nahida', name: 'ナヒーダ', element: ELEMENTS.DENDRO, weapon: WEAPONS.CATALYST, releaseYear: 2022, rarity: 5, role: 'サブアタッカー / サポーター', recommendRank: 'SS', avatar: '🌱',
+    reason: '草元素反応（開花、激化など）を軸とするパーティにおいて必須級のキャラクター。敵に草元素を付着させる能力が非常に高く、味方の熟知バフも強力。',
+    talentMaterial: MATERIALS.INGENUITY, bestWeapon: '千夜に浮かぶ夢 / 祭礼の断片 / 魔導緒論', bestArtifact: '深林の記憶 4セット / 金メッキの夢 4セット',
+    artifactStats: { main: '時計: 熟知 / 杯: 熟知 or 草バフ / 冠: 熟知 or 会心系', sub: '熟知 > 会心系 > 元チャ > 攻撃%' }
+  },
+  {
+    id: 'tighnari', name: 'ティナリ', element: ELEMENTS.DENDRO, weapon: WEAPONS.BOW, releaseYear: 2022, rarity: 5, role: 'メインアタッカー', recommendRank: 'S', avatar: '🌿',
+    reason: '重撃のチャージが速く、短時間で一気に高火力を叩き出す草弓アタッカー。雷キャラと組む「激化」パーティにおいて恒常キャラとは思えない火力を出す。',
+    talentMaterial: MATERIALS.ADMONITION, bestWeapon: '狩人の道 / 弾弓 / 絶弦', bestArtifact: '金メッキの夢 4セット / 大地を流浪する楽団 4セット',
+    artifactStats: { main: '時計: 熟知 / 杯: 草バフ / 冠: 会心系', sub: '会心系 > 熟知 > 攻撃% > 元チャ' }
+  },
+  {
+    id: 'alhaitham', name: 'アルハイゼン', element: ELEMENTS.DENDRO, weapon: WEAPONS.SWORD, releaseYear: 2023, rarity: 5, role: 'メインアタッカー', recommendRank: 'SS', avatar: '📖',
+    reason: '草元素の付着能力と手数が非常に多いメインアタッカー。激化、超開花のどちらの編成でもアタッカーとして最強クラスの火力を誇る。',
+    talentMaterial: MATERIALS.INGENUITY, bestWeapon: '萃光の裁葉 / 黎明の神剣 / 鉄蜂の刺し', bestArtifact: '金メッキの夢 4セット',
+    artifactStats: { main: '時計: 熟知 / 杯: 草バフ / 冠: 会心系', sub: '会心系 > 熟知 > 元チャ > 攻撃%' }
+  },
+  {
+    id: 'baizhu', name: '白朮 (ビャクジュツ)', element: ELEMENTS.DENDRO, weapon: WEAPONS.CATALYST, releaseYear: 2023, rarity: 5, role: 'ヒーラー / サポーター', recommendRank: 'S', avatar: '🐍',
+    reason: 'スキルで全体回復、爆発で微細なシールドと回復を行う草ヒーラー。激化や開花編成で耐久枠を圧縮しつつ、草元素反応のダメージバフも配れる。',
+    talentMaterial: MATERIALS.GOLD, bestWeapon: '碧落の瓏 / 金珀・試作', bestArtifact: '深林の記憶 4セット / 海染硨磲 4セット',
+    artifactStats: { main: '時計: HP% or 元チャ / 杯: HP% / 冠: HP% or 治癒効果', sub: '元チャ > HP% > 固定HP' }
+  },
+  {
+    id: 'collei', name: 'コレイ', element: ELEMENTS.DENDRO, weapon: WEAPONS.BOW, releaseYear: 2022, rarity: 4, role: 'サブアタッカー', recommendRank: 'A', avatar: '🪃',
+    reason: '深境螺旋のクリアで誰でも手に入る草サブアタッカー。ナヒーダを持っていない場合の草付着役として優秀で、探索でもギミック解除に役立つ。',
+    talentMaterial: MATERIALS.PRAXIS, bestWeapon: '終焉を嘆く詩 / 祭礼の弓 / 西風猟弓', bestArtifact: '深林の記憶 4セット',
+    artifactStats: { main: '時計: 攻撃% or 元チャ / 杯: 草バフ / 冠: 会心系', sub: '元チャ > 会心系 > 攻撃% > 熟知' }
+  },
+
+  // --- 氷元素 (CRYO) ---
+  {
+    id: 'ayaka', name: '神里綾華 (アヤカ)', element: ELEMENTS.CRYO, weapon: WEAPONS.SWORD, releaseYear: 2021, rarity: 5, role: 'メインアタッカー', recommendRank: 'S', avatar: '❄️',
+    reason: 'ダッシュから氷元素を付与し、高火力の元素爆発で敵を粉砕する氷アタッカー。水キャラと組んで敵を動かさなくする「凍結」パーティの主砲。',
+    talentMaterial: MATERIALS.ELEGANCE, bestWeapon: '霧切の廻光 / 天目影打', bestArtifact: '氷風を彷徨う勇士 4セット',
+    artifactStats: { main: '時計: 攻撃% / 杯: 氷バフ / 冠: 会心ダメ or 会心率', sub: '会心ダメ > 会心率 > 攻撃% > 元チャ' }
+  },
+  {
+    id: 'ganyu', name: '甘雨 (カンウ)', element: ELEMENTS.CRYO, weapon: WEAPONS.BOW, releaseYear: 2021, rarity: 5, role: 'メインアタッカー', recommendRank: 'S', avatar: '🐐',
+    reason: '遠距離からの2段チャージ重撃で広範囲に大ダメージを与える弓アタッカー。炎と組む溶解編成、水と組む凍結編成、さらには裏からのサブ運用もこなす。',
+    talentMaterial: MATERIALS.DILIGENCE, bestWeapon: 'アモスの弓 / 破魔の弓', bestArtifact: '氷風を彷徨う勇士 4セット / 大地を流浪する楽団 4セット',
+    artifactStats: { main: '時計: 攻撃% or 熟知 / 杯: 氷バフ / 冠: 会心系', sub: '会心系 > 攻撃% > 熟知' }
+  },
+  {
+    id: 'wriothesley', name: 'リオセスリ', element: ELEMENTS.CRYO, weapon: WEAPONS.CATALYST, releaseYear: 2023, rarity: 5, role: 'メインアタッカー', recommendRank: 'S', avatar: '🥊',
+    reason: '法器キャラだが、インファイトの格闘戦を行うアタッカー。通常攻撃と重撃を組み合わせたコンボが強力で、溶解パーティや凍結パーティで活躍する。',
+    talentMaterial: MATERIALS.ORDER, bestWeapon: '凛流の監視者 / 流浪楽章', bestArtifact: 'ファントムハンター 4セット',
+    artifactStats: { main: '時計: 攻撃% / 杯: 氷バフ / 冠: 会心系', sub: '会心系 > 攻撃% > 熟知 > 元チャ' }
+  },
+  {
+    id: 'eula', name: 'エウルア', element: ELEMENTS.CRYO, weapon: WEAPONS.CLAYMORE, releaseYear: 2021, rarity: 5, role: '物理アタッカー', recommendRank: 'B', avatar: '💃',
+    reason: '氷元素キャラだが、物理ダメージを主力とする特殊なアタッカー。元素爆発による最後の一撃ダメージが全キャラでもトップクラスのロマン砲。',
+    talentMaterial: MATERIALS.RESISTANCE, bestWeapon: '松韻の響く頃 / 雪葬の星銀', bestArtifact: '蒼白の炎 4セット',
+    artifactStats: { main: '時計: 攻撃% / 杯: 物理ダメ / 冠: 会心系', sub: '会心系 > 攻撃% > 元チャ' }
+  },
+  {
+    id: 'diona', name: 'ディオナ', element: ELEMENTS.CRYO, weapon: WEAPONS.BOW, releaseYear: 2020, rarity: 4, role: 'シールド / ヒーラー', recommendRank: 'S', avatar: '🐱',
+    reason: 'シールド展開と全体回復を一人で両立できる非常に優秀なサポーター。祭礼の弓を持たせることで氷パーティのエネルギー回復（電池役）としても優秀。',
+    talentMaterial: MATERIALS.FREEDOM, bestWeapon: '祭礼の弓 / 西風猟弓', bestArtifact: '旧貴族のしつけ 4セット / 千岩2+愛され2',
+    artifactStats: { main: '時計: HP% or 元チャ / 杯: HP% / 冠: HP% or 治癒効果', sub: '元チャ > HP% > 固定HP' }
+  },
+
+  // --- 岩元素 (GEO) ---
+  {
+    id: 'zhongli', name: '鍾離 (ショウリ)', element: ELEMENTS.GEO, weapon: WEAPONS.POLEARM, releaseYear: 2020, rarity: 5, role: 'シールドサポーター', recommendRank: 'SS', avatar: '🛡️',
+    reason: 'ゲーム内最強の硬さを誇るシールドを展開でき、周囲の敵の全元素耐性を下げるデバフも持つ。彼がいれば敵の攻撃を避ける必要がほぼ無くなる。',
+    talentMaterial: MATERIALS.GOLD, bestWeapon: '護摩の杖 / スライム槍(黒纓槍) / 西風長槍', bestArtifact: '千岩牢固 4セット',
+    artifactStats: { main: '時計: HP% / 杯: HP% or 岩バフ / 冠: HP% or 会心系', sub: 'HP% > 会心系 > 元チャ > 攻撃%' }
+  },
+  {
+    id: 'itto', name: '荒瀧一斗 (アラタキイット)', element: ELEMENTS.GEO, weapon: WEAPONS.CLAYMORE, releaseYear: 2021, rarity: 5, role: 'メインアタッカー', recommendRank: 'S', avatar: '👹',
+    reason: '防御力を攻撃力に変換し、専用のスタックを消費して強力な連続重撃を叩き込む岩アタッカー。ゴローなどの岩サポーターと組んだ岩染めパーティの主砲。',
+    talentMaterial: MATERIALS.ELEGANCE, bestWeapon: '赤角石塵滅砕 / 白影の剣', bestArtifact: '華館夢醒形骸記 4セット',
+    artifactStats: { main: '時計: 防御% / 杯: 岩バフ / 冠: 会心系', sub: '会心系 > 防御% > 元チャ' }
+  },
+  {
+    id: 'navia', name: 'ナヴィア', element: ELEMENTS.GEO, weapon: WEAPONS.CLAYMORE, releaseYear: 2023, rarity: 5, role: 'メインアタッカー', recommendRank: 'S', avatar: '☂️',
+    reason: '結晶反応による欠片を拾うことで、スキルのガンブレラ射撃が超高火力になる岩アタッカー。他元素の裏キャラと組むことで真価を発揮する。',
+    talentMaterial: MATERIALS.EQUITY, bestWeapon: '裁断 / 螭龍の剣 / スーパーアルティメット覇王魔剣', bestArtifact: '残響の森で囁かれる夜話 4セット / 黄金の劇団 4セット',
+    artifactStats: { main: '時計: 攻撃% / 杯: 岩バフ / 冠: 会心系', sub: '会心系 > 攻撃% > 元チャ' }
+  },
+  {
+    id: 'chiori', name: '千織 (チオリ)', element: ELEMENTS.GEO, weapon: WEAPONS.SWORD, releaseYear: 2024, rarity: 5, role: 'サブアタッカー', recommendRank: 'S', avatar: '👘',
+    reason: '自動で敵を攻撃する「たもと」を召喚する岩サブアタッカー。パーティ内に岩創造物（鍾離の柱など）が存在すると手数が倍になり高火力を出す。',
+    talentMaterial: MATERIALS.LIGHT, bestWeapon: '有楽御簾切 / 狼牙 / 黎明の神剣', bestArtifact: '黄金の劇団 4セット / 華館夢醒形骸記 4セット',
+    artifactStats: { main: '時計: 防御% / 杯: 岩バフ / 冠: 会心系', sub: '会心系 > 防御% > 攻撃%' }
+  },
+  {
+    id: 'albedo', name: 'アルベド', element: ELEMENTS.GEO, weapon: WEAPONS.SWORD, releaseYear: 2020, rarity: 5, role: 'サブアタッカー', recommendRank: 'A', avatar: '🧪',
+    reason: 'スキルを設置するだけで、長期間にわたり岩元素の範囲追撃を行ってくれるお手軽サブアタッカー。胡桃パーティなどの空き枠によく採用される。',
+    talentMaterial: MATERIALS.BALLAD, bestWeapon: 'シナバースピンドル / 黎明の神剣', bestArtifact: '華館夢醒形骸記 4セット / 黄金の劇団 4セット',
+    artifactStats: { main: '時計: 防御% / 杯: 岩バフ / 冠: 会心系', sub: '会心系 > 防御% > 攻撃%' }
+  },
+  {
+    id: 'noelle', name: 'ノエル', element: ELEMENTS.GEO, weapon: WEAPONS.CLAYMORE, releaseYear: 2020, rarity: 4, role: 'アタッカー / シールド', recommendRank: 'A', avatar: '🌹',
+    reason: '初心者ガチャで必ず引けるメイド。完凸（命ノ星座6）すると防御力が大幅に攻撃力に変換され、シールド・回復・範囲火力を併せ持つ要塞と化す。',
+    talentMaterial: MATERIALS.RESISTANCE, bestWeapon: '赤角石塵滅砕 / 白影の剣 / 螭龍の剣', bestArtifact: '華館夢醒形骸記 4セット / ファントムハンター 4セット',
+    artifactStats: { main: '時計: 防御% / 杯: 岩バフ / 冠: 会心系', sub: '会心系 > 防御% > 元チャ' }
+  }
+];
+
+// 🌟 おすすめパーティー編成のデータベース 🌟
+const PARTY_DB = [
+  {
+    id: 'raiden_national', name: '雷電ナショナル', members: ['raiden', 'xiangling', 'xingqiu', 'bennett'],
+    description: '雷電将軍でエネルギーを回復しつつ、全員の強力な元素爆発を回し続ける極めて汎用性の高い編成。'
+  },
+  {
+    id: 'hutao_vape', name: '胡桃 往生夜行', members: ['hutao', 'xingqiu', 'yelan', 'zhongli'],
+    description: '行秋と夜蘭の圧倒的な水付着から胡桃の重撃で連続して蒸発を起こす高火力編成。鍾離のシールドで安定感も抜群。'
+  },
+  {
+    id: 'ayaka_freeze', name: '綾華 凍結', members: ['ayaka', 'kokomi', 'kazuha', 'diona'],
+    description: '敵を凍結させて完封しつつ、神里綾華の高火力な元素爆発を叩き込む編成。ディオナは申鶴の代用としても優秀。'
+  },
+  {
+    id: 'nahida_hyperbloom', name: 'ナヒーダ 超開花', members: ['nahida', 'xingqiu', 'kuki', 'yelan'],
+    description: '草と水で草原核を作り、熟知特化の久岐忍で超開花を起こす。低コストかつ非常に高い継続ダメージを誇る。'
+  },
+  {
+    id: 'neuvillette_hyper', name: 'ヌヴィレット キャリー', members: ['neuvillette', 'furina', 'kazuha', 'baizhu'],
+    description: 'ヌヴィレットの重撃火力をフリーナと万葉で最大限に高め、白朮で全体回復と中断耐性を補う最強クラスの編成。'
+  },
+  {
+    id: 'arlecchino_vape', name: '召使 蒸発', members: ['arlecchino', 'yelan', 'bennett', 'zhongli'],
+    description: 'アルレッキーノの強力な通常攻撃に夜蘭の水追撃を合わせる編成。ベネットで攻撃力を盛り、鍾離で守る。'
+  },
+  {
+    id: 'tighnari_spread', name: 'ティナリ 激化', members: ['tighnari', 'yaemiko', 'fischl', 'zhongli'],
+    description: '草と雷の激化反応を利用し、ティナリの素早い重撃と八重・フィッシュルの雷追撃で火力を出す。'
+  },
+  {
+    id: 'navia_crystallize', name: 'ナヴィア 結晶', members: ['navia', 'zhongli', 'xiangling', 'bennett'],
+    description: '炎元素で結晶を作りつつ、ナヴィアのスキル（ガンブレラ）で超高火力を叩き出す編成。'
+  },
+  {
+    id: 'alhaitham_quickbloom', name: '配膳 激化超開花', members: ['alhaitham', 'nahida', 'xingqiu', 'kuki'],
+    description: 'アルハイゼンの草付着を活かし、激化と超開花を同時に起こして戦う手数の多い高火力編成。'
+  },
+  {
+    id: 'xiao_hyper', name: '魈 落下攻撃', members: ['xiao', 'jean', 'zhongli', 'bennett'],
+    description: '魈の元素爆発による連続落下攻撃の火力をベネットで引き上げ、ジンで回復と風粒子供給を行う編成。'
+  },
+  {
+    id: 'ganyu_melt', name: '甘雨 溶解', members: ['ganyu', 'xiangling', 'bennett', 'zhongli'],
+    description: 'ベネットと香菱で炎を下地にし、甘雨の重撃でダメージが1.5倍になる溶解反応を狙う一撃必殺編成。'
+  },
+  {
+    id: 'itto_mono_geo', name: '一斗 岩染め', members: ['itto', 'chiori', 'albedo', 'zhongli'],
+    description: '岩元素キャラクターのみで編成し、圧倒的な防御力と岩元素ダメージでゴリ押しする編成。'
+  },
+  {
+    id: 'yoimiya_vape', name: '宵宮 蒸発', members: ['yoimiya', 'yelan', 'bennett', 'zhongli'],
+    description: '遠距離から宵宮の通常攻撃と夜蘭の追撃で蒸発を起こす、対単体ボスに対して非常に強い編成。'
+  },
+  {
+    id: 'tartaglia_national', name: 'タルタリヤ インターナショナル', members: ['tartaglia', 'xiangling', 'kazuha', 'bennett'],
+    description: 'タルタリヤの水付着と香菱の炎輪で蒸発を起こしつつ、万葉で両方の元素バフを配る集団戦最強クラスの編成。'
+  }
+];
+
+// 🌟 コミュニティ（Q&A）の初期モックデータ 🌟
+const INITIAL_QUESTIONS = [
+  {
+    id: 1,
+    title: 'フリーナの聖遺物について質問です',
+    content: 'フリーナを無凸で引いたのですが、黄金の劇団4セットか、千岩4セットどちらが良いでしょうか？武器は腐植の剣を持たせています。',
+    author: '旅人A',
+    date: '2026-04-17',
+    tags: ['フリーナ', '聖遺物', '育成'],
+    answers: [
+      { id: 101, author: '原神マスター', content: '無凸でサブアタッカーとして運用するなら黄金の劇団4セット一択です！裏からのスキル火力が段違いになりますよ。', date: '2026-04-17' },
+      { id: 102, author: 'エンジョイ勢', content: '私も劇団推しです！時計はHPか元チャ、杯はHPにするのを忘れずに！', date: '2026-04-17' }
+    ]
+  },
+  {
+    id: 2,
+    title: '螺旋12層で星36が取れません…',
+    content: '現在、前半に雷電ナショナル、後半にヌヴィレット編成を使っていますが、どうしても時間が足りず星36に届きません。コツや立ち回りなどありますか？',
+    author: '初心者旅人',
+    date: '2026-04-16',
+    tags: ['深境螺旋', '編成', '戦闘'],
+    answers: []
+  },
+  {
+    id: 3,
+    title: '次のガチャで引くべきおすすめキャラは？',
+    content: '現在、鍾離と万葉を持っています。メインアタッカーが不足しているのですが、誰を引くのがおすすめですか？無課金です。',
+    author: '石貯め中',
+    date: '2026-04-15',
+    tags: ['ガチャ', '相談'],
+    answers: [
+      { id: 301, author: '古参プレイヤー', content: 'アタッカーならアルレッキーノかヌヴィレットの復刻を待つのがおすすめですね。単体でも火力が非常に出しやすいですし、無凸でも十分強いです。', date: '2026-04-15' },
+      { id: 302, author: 'スライムハンター', content: 'アルハイゼンもいいですよ！超開花編成なら星4キャラ中心でも簡単に高火力が出せます。', date: '2026-04-16' }
+    ]
+  }
+];
+
+// 🌟 キャラクター全体に「総合おすすめ順位 (overallRank)」を自動で付与する処理 🌟
+const rankValue = { 'SS': 4, 'S': 3, 'A': 2, 'B': 1 };
+const roleValue = (role) => {
+  if (role.includes('サポーター') && role.includes('ヒーラー')) return 4;
+  if (role.includes('サポーター')) return 3;
+  if (role.includes('サブアタッカー')) return 2;
+  return 1; // メインアタッカーなど
+};
+
+const sortedForRanking = [...CHARACTER_DB].sort((a, b) => {
+  if (rankValue[b.recommendRank] !== rankValue[a.recommendRank]) {
+    return rankValue[b.recommendRank] - rankValue[a.recommendRank]; // 1. SS > S > A > B
+  }
+  if (roleValue(b.role) !== roleValue(a.role)) {
+    return roleValue(b.role) - roleValue(a.role); // 2. サポーター・ヒーラー優先
+  }
+  if (b.releaseYear !== a.releaseYear) {
+    return b.releaseYear - a.releaseYear; // 3. 比較的新しいキャラを優先
+  }
+  return b.rarity - a.rarity; // 4. 星5優先
+});
+
+// 計算した順位を元の CHARACTER_DB の各オブジェクトにプロパティとして追加
+sortedForRanking.forEach((char, index) => {
+  const target = CHARACTER_DB.find(c => c.id === char.id);
+  target.overallRank = index + 1;
+});
+
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState('recommend'); // 'recommend', 'characters', 'parties', 'community'
+  const [selectedCharacter, setSelectedCharacter] = useState(null);
+  const [filterElement, setFilterElement] = useState('ALL');
+  const [filterWeapon, setFilterWeapon] = useState('ALL'); // 武器のフィルター状態
+
+  // 所持キャラクターの管理（キャラクターのIDを配列で保存）
+  const [ownedCharacters, setOwnedCharacters] = useState([]);
+
+  // コミュニティ用データ
+  const [questions, setQuestions] = useState(INITIAL_QUESTIONS);
+
+  // ヒントメッセージの表示状態
+  const [showHint, setShowHint] = useState(true);
+
+  // 所持状態の切り替え関数
+  const toggleOwnedCharacter = (charId) => {
+    setOwnedCharacters(prev => 
+      prev.includes(charId) 
+        ? prev.filter(id => id !== charId) 
+        : [...prev, charId]
+    );
+  };
+
+  // タブの切り替え
+  const renderContent = () => {
+    if (activeTab === 'recommend') {
+      return (
+        <RecommendScreen 
+          onSelectCharacter={setSelectedCharacter} 
+          ownedCharacters={ownedCharacters}
+          onToggleOwned={toggleOwnedCharacter}
+        />
+      );
+    } else if (activeTab === 'characters') {
+      return (
+        <CharacterListScreen 
+          filterElement={filterElement} 
+          setFilterElement={setFilterElement} 
+          filterWeapon={filterWeapon}
+          setFilterWeapon={setFilterWeapon}
+          onSelectCharacter={setSelectedCharacter} 
+          ownedCharacters={ownedCharacters}
+          onToggleOwned={toggleOwnedCharacter}
+        />
+      );
+    } else if (activeTab === 'parties') {
+      return (
+        <PartyListScreen 
+          ownedCharacters={ownedCharacters} 
+          onSelectCharacter={setSelectedCharacter}
+        />
+      );
+    } else if (activeTab === 'community') {
+      return (
+        <CommunityScreen 
+          questions={questions}
+          setQuestions={setQuestions}
+        />
+      );
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-100 text-slate-800 font-sans pb-10">
+      {/* ヘッダー */}
+      <header className="bg-slate-900 text-white shadow-md sticky top-0 z-40">
+        <div className="max-w-4xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <h1 className="text-xl font-extrabold tracking-wider flex items-center gap-2">
+            <span className="text-2xl">✨</span> Teyvat Guide
+          </h1>
+          <nav className="flex gap-2 overflow-x-auto pb-1 no-scrollbar w-full sm:w-auto">
+            <button 
+              onClick={() => setActiveTab('recommend')}
+              className={`shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-colors ${activeTab === 'recommend' ? 'bg-blue-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+            >
+              育成おすすめ
+            </button>
+            <button 
+              onClick={() => setActiveTab('parties')}
+              className={`shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-colors ${activeTab === 'parties' ? 'bg-blue-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+            >
+              おすすめ編成 ⚔️
+            </button>
+            <button 
+              onClick={() => setActiveTab('characters')}
+              className={`shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-colors ${activeTab === 'characters' ? 'bg-blue-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+            >
+              キャラ図鑑・素材
+            </button>
+            <button 
+              onClick={() => setActiveTab('community')}
+              className={`shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-colors ${activeTab === 'community' ? 'bg-orange-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+            >
+              Q&A・相談 💬
+            </button>
+          </nav>
+        </div>
+      </header>
+
+      {/* メインコンテンツ */}
+      <main className="max-w-4xl mx-auto px-4 mt-6">
+        
+        {/* 💡 使い方ヒント（アプリを開いた際に表示） */}
+        {showHint && activeTab !== 'community' && (
+          <div className="bg-white border-l-4 border-blue-500 p-4 mb-6 rounded-r-xl shadow-sm relative animate-fade-in flex items-start gap-3">
+            <span className="text-2xl shrink-0">💡</span>
+            <div className="pr-6">
+              <p className="font-bold text-slate-800 mb-1">所持キャラを登録してみましょう！</p>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                キャラクターカードの <span className="inline-block bg-slate-200 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded-full mx-1 shadow-sm">＋ 追加</span> ボタンを押すと、自分の持っているキャラとして登録できます。<br/>
+                登録すると「所持キャラのみ」での絞り込みや、あなた専用の育成優先度、さらに<span className="font-bold text-blue-500">あなたが組めるおすすめ編成</span>が確認できるようになります！
+              </p>
+            </div>
+            <button 
+              onClick={() => setShowHint(false)} 
+              className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 bg-slate-100 hover:bg-slate-200 w-6 h-6 rounded-full flex items-center justify-center transition-colors font-bold text-xs"
+              aria-label="閉じる"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {renderContent()}
+      </main>
+
+      {/* キャラクター詳細モーダル */}
+      {selectedCharacter && (
+        <CharacterModal 
+          character={selectedCharacter} 
+          onClose={() => setSelectedCharacter(null)} 
+          isOwned={ownedCharacters.includes(selectedCharacter.id)}
+          onToggleOwned={() => toggleOwnedCharacter(selectedCharacter.id)}
+          ownedCharacters={ownedCharacters}
+        />
+      )}
+    </div>
+  );
+}
+
+// ==========================================
+// 💬 コミュニティ（Q&A・相談）画面
+// ==========================================
+function CommunityScreen({ questions, setQuestions }) {
+  const [selectedQuestion, setSelectedQuestion] = useState(null);
+  const [isComposing, setIsComposing] = useState(false);
+  const [newQuestion, setNewQuestion] = useState({ title: '', content: '', author: '', tags: '' });
+  const [newAnswer, setNewAnswer] = useState({ author: '', content: '' });
+
+  // AI賢者機能の状態
+  const [isGeneratingAiAnswer, setIsGeneratingAiAnswer] = useState(false);
+
+  // 質問を投稿する処理
+  const handlePostQuestion = (e) => {
+    e.preventDefault();
+    if (!newQuestion.title || !newQuestion.content) return;
+    
+    // タグをカンマ区切りで配列に変換
+    const tagsArray = newQuestion.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+
+    const q = {
+      id: Date.now(),
+      title: newQuestion.title,
+      content: newQuestion.content,
+      author: newQuestion.author || '名無しの旅人',
+      date: new Date().toISOString().split('T')[0],
+      tags: tagsArray.length > 0 ? tagsArray : ['質問'],
+      answers: []
+    };
+    setQuestions([q, ...questions]);
+    setIsComposing(false);
+    setNewQuestion({ title: '', content: '', author: '', tags: '' });
+  };
+
+  // 通常の回答を投稿する処理
+  const handlePostAnswer = (e) => {
+    e.preventDefault();
+    if (!newAnswer.content) return;
+
+    addAnswerToSelectedQuestion(newAnswer.author || '名無しの旅人', newAnswer.content);
+    setNewAnswer({ author: '', content: '' });
+  };
+
+  // 共通の回答追加処理
+  const addAnswerToSelectedQuestion = (author, content, isAi = false) => {
+    const updatedQuestions = questions.map(q => {
+      if (q.id === selectedQuestion.id) {
+        const a = {
+          id: Date.now(),
+          author,
+          content,
+          date: new Date().toISOString().split('T')[0],
+          isAi
+        };
+        const newQ = { ...q, answers: [...q.answers, a] };
+        setSelectedQuestion(newQ); // 開いているモーダルの状態も更新
+        return newQ;
+      }
+      return q;
+    });
+    setQuestions(updatedQuestions);
+  };
+
+  // ✨ Gemini APIを使った自動回答処理
+  const handleGenerateAiAnswer = async () => {
+    setIsGeneratingAiAnswer(true);
+    const prompt = `以下の原神プレイヤーからの質問に対して、適切なアドバイスを返答してください。質問の内容を解決する具体的な方法や編成、育成方針を答えてください。\n\n【質問タイトル】: ${selectedQuestion.title}\n【質問内容】: ${selectedQuestion.content}`;
+    const systemInstruction = "あなたは原神に非常に詳しいベテランプレイヤー「AI賢者」です。親切で丁寧な口調で、初心者にも分かりやすいように絵文字を交えてアドバイスをしてください。";
+    
+    const responseText = await callGeminiAPI(prompt, systemInstruction);
+    addAnswerToSelectedQuestion('✨ AI賢者', responseText, true);
+    setIsGeneratingAiAnswer(false);
+  };
+
+  return (
+    <div className="animate-fade-in relative">
+      <div className="mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div>
+          <h2 className="text-3xl font-extrabold text-slate-800 mb-2">旅人Q&A コミュニティ</h2>
+          <p className="text-slate-500">編成、育成、探索の悩みをみんなで解決しましょう。</p>
+        </div>
+        <button 
+          onClick={() => setIsComposing(true)}
+          className="w-full sm:w-auto bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-6 rounded-full shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+        >
+          <span>✏️</span> 質問を投稿する
+        </button>
+      </div>
+
+      {/* 質問リスト */}
+      <div className="space-y-4">
+        {questions.map(q => (
+          <div 
+            key={q.id} 
+            onClick={() => setSelectedQuestion(q)}
+            className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 cursor-pointer hover:shadow-md hover:border-orange-300 transition-all flex flex-col sm:flex-row gap-4"
+          >
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-slate-800 mb-2">{q.title}</h3>
+              <p className="text-sm text-slate-600 line-clamp-2 mb-3">{q.content}</p>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="font-bold text-slate-400">👤 {q.author}</span>
+                <span className="text-slate-400">• {q.date}</span>
+                {q.tags.map((tag, idx) => (
+                  <span key={idx} className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">#{tag}</span>
+                ))}
+              </div>
+            </div>
+            <div className="shrink-0 flex items-center sm:flex-col justify-center sm:justify-start gap-2 border-t sm:border-t-0 pt-3 sm:pt-0 sm:border-l border-slate-100 sm:pl-4">
+              <div className={`flex flex-col items-center justify-center w-16 h-16 rounded-xl ${q.answers.length > 0 ? 'bg-orange-50 text-orange-600' : 'bg-slate-50 text-slate-400'}`}>
+                <span className="text-xl font-black">{q.answers.length}</span>
+                <span className="text-[10px] font-bold">回答</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 📝 新規質問投稿モーダル */}
+      {isComposing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="absolute inset-0" onClick={() => setIsComposing(false)}></div>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg relative z-10 overflow-hidden flex flex-col">
+            <div className="bg-orange-500 p-4 text-white flex justify-between items-center">
+              <h3 className="font-bold text-lg flex items-center gap-2"><span>✏️</span> 新しい質問を作成</h3>
+              <button onClick={() => setIsComposing(false)} className="w-8 h-8 bg-black/20 rounded-full flex items-center justify-center hover:bg-black/40 transition-colors">✕</button>
+            </div>
+            <form onSubmit={handlePostQuestion} className="p-6 flex flex-col gap-4 overflow-y-auto max-h-[80vh]">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">質問のタイトル <span className="text-red-500">*</span></label>
+                <input 
+                  type="text" 
+                  required
+                  value={newQuestion.title}
+                  onChange={e => setNewQuestion({...newQuestion, title: e.target.value})}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" 
+                  placeholder="例：フリーナの聖遺物について" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">質問の内容 <span className="text-red-500">*</span></label>
+                <textarea 
+                  required
+                  rows="5"
+                  value={newQuestion.content}
+                  onChange={e => setNewQuestion({...newQuestion, content: e.target.value})}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none" 
+                  placeholder="具体的な編成や悩みを書きましょう..." 
+                ></textarea>
+              </div>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block text-xs font-bold text-slate-500 mb-1">投稿者名</label>
+                  <input 
+                    type="text" 
+                    value={newQuestion.author}
+                    onChange={e => setNewQuestion({...newQuestion, author: e.target.value})}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm" 
+                    placeholder="名無しの旅人" 
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-bold text-slate-500 mb-1">タグ（カンマ区切り）</label>
+                  <input 
+                    type="text" 
+                    value={newQuestion.tags}
+                    onChange={e => setNewQuestion({...newQuestion, tags: e.target.value})}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm" 
+                    placeholder="例：螺旋, 編成" 
+                  />
+                </div>
+              </div>
+              <button type="submit" className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl mt-2 transition-colors">
+                投稿する
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 📖 質問詳細・回答モーダル */}
+      {selectedQuestion && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="absolute inset-0" onClick={() => setSelectedQuestion(null)}></div>
+          <div className="bg-slate-100 rounded-3xl shadow-2xl w-full max-w-2xl relative z-10 overflow-hidden flex flex-col max-h-[90vh]">
+            
+            {/* 質問内容（固定） */}
+            <div className="bg-white p-6 border-b border-slate-200 shrink-0 relative">
+              <button 
+                onClick={() => setSelectedQuestion(null)}
+                className="absolute top-4 right-4 w-8 h-8 bg-slate-100 text-slate-500 rounded-full flex items-center justify-center hover:bg-slate-200 transition-colors"
+              >✕</button>
+              <div className="flex gap-2 mb-3 pr-8">
+                {selectedQuestion.tags.map((tag, idx) => (
+                  <span key={idx} className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-xs font-bold">#{tag}</span>
+                ))}
+              </div>
+              <h2 className="text-2xl font-extrabold text-slate-800 mb-4">{selectedQuestion.title}</h2>
+              <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{selectedQuestion.content}</p>
+              <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-center text-xs text-slate-400 font-medium">
+                <span>質問者: <span className="font-bold text-slate-600">{selectedQuestion.author}</span></span>
+                <span>{selectedQuestion.date}</span>
+              </div>
+            </div>
+
+            {/* 回答リスト（スクロール） */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
+                <span>💬</span> 回答 ({selectedQuestion.answers.length}件)
+              </h3>
+              
+              {selectedQuestion.answers.length === 0 ? (
+                <div className="text-center py-8 text-slate-400 font-medium">
+                  まだ回答がありません。最初の回答者になりましょう！
+                </div>
+              ) : (
+                selectedQuestion.answers.map(ans => (
+                  <div key={ans.id} className={`p-4 rounded-xl shadow-sm border ${ans.isAi ? 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200' : 'bg-white border-slate-200'}`}>
+                    <p className="text-slate-700 whitespace-pre-wrap text-sm leading-relaxed mb-3">{ans.content}</p>
+                    <div className="flex justify-between items-center text-xs text-slate-400">
+                      <span>回答者: <span className={`font-bold ${ans.isAi ? 'text-purple-600' : 'text-blue-500'}`}>{ans.author}</span></span>
+                      <span>{ans.date}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* 回答投稿フォーム（固定） */}
+            <div className="bg-white p-4 border-t border-slate-200 shrink-0">
+              <form onSubmit={handlePostAnswer} className="flex flex-col gap-2">
+                <input 
+                  type="text" 
+                  value={newAnswer.author}
+                  onChange={e => setNewAnswer({...newAnswer, author: e.target.value})}
+                  className="w-1/3 px-3 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs" 
+                  placeholder="名前（任意）" 
+                />
+                <div className="flex gap-2">
+                  <textarea 
+                    required
+                    rows="2"
+                    value={newAnswer.content}
+                    onChange={e => setNewAnswer({...newAnswer, content: e.target.value})}
+                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm" 
+                    placeholder="回答を入力..." 
+                  ></textarea>
+                  <div className="flex flex-col gap-2">
+                    <button type="submit" className="bg-blue-500 hover:bg-blue-600 text-white font-bold px-4 py-2 rounded-lg transition-colors whitespace-nowrap text-sm h-full">
+                      送信
+                    </button>
+                  </div>
+                </div>
+              </form>
+              
+              {/* ✨ AI賢者に回答を聞くボタン ✨ */}
+              <div className="mt-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={handleGenerateAiAnswer}
+                  disabled={isGeneratingAiAnswer}
+                  className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-all text-sm flex justify-center items-center gap-2 disabled:opacity-50"
+                >
+                  {isGeneratingAiAnswer ? '✨ AI賢者が考えています...' : '✨ AI賢者に回答を聞く'}
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ==========================================
+// 🌟 おすすめパーティー編成画面
+// ==========================================
+function PartyListScreen({ ownedCharacters, onSelectCharacter }) {
+  const [showOnlyCanBuild, setShowOnlyCanBuild] = useState(false);
+
+  // 表示するパーティのフィルタリング
+  const displayParties = PARTY_DB.filter(party => {
+    if (showOnlyCanBuild) {
+      // 全てのメンバーを所持しているかチェック
+      return party.members.every(id => ownedCharacters.includes(id));
+    }
+    return true;
+  });
+
+  return (
+    <div className="animate-fade-in">
+      <div className="mb-8 text-center">
+        <h2 className="text-3xl font-extrabold text-slate-800 mb-2">おすすめパーティー編成</h2>
+        <p className="text-slate-500 mb-4">強力なシナジーを生み出す、有名な編成の組み合わせです。</p>
+        
+        <label className="inline-flex items-center cursor-pointer bg-white px-4 py-2 rounded-full shadow-sm border border-slate-200 hover:bg-slate-50 transition-colors">
+          <input 
+            type="checkbox" 
+            className="sr-only peer"
+            checked={showOnlyCanBuild}
+            onChange={(e) => setShowOnlyCanBuild(e.target.checked)}
+          />
+          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500 relative mr-3"></div>
+          <span className="text-sm font-bold text-slate-700">組める編成のみ表示</span>
+        </label>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {displayParties.map(party => {
+          const isBuildable = party.members.every(id => ownedCharacters.includes(id));
+          return (
+            <div key={party.id} className={`bg-white rounded-2xl shadow-sm border p-5 relative overflow-hidden transition-all ${isBuildable ? 'border-green-400 shadow-green-100' : 'border-slate-200'}`}>
+              <h3 className="text-xl font-bold text-slate-800 mb-2">{party.name}</h3>
+              <p className="text-sm text-slate-600 mb-4 h-10 line-clamp-2">{party.description}</p>
+              
+              <div className="flex gap-3 mt-auto">
+                {party.members.map((memberId, idx) => {
+                  const char = CHARACTER_DB.find(c => c.id === memberId);
+                  const isOwned = ownedCharacters.includes(memberId);
+                  return (
+                    <div key={idx} onClick={() => onSelectCharacter(char)} className="cursor-pointer relative group">
+                      <div className={`w-14 h-14 rounded-full ${char.element.bgLight} border-2 ${char.element.border} flex items-center justify-center text-3xl transition-transform group-hover:scale-105 ${!isOwned && 'opacity-30 grayscale'}`}>
+                        {char.avatar}
+                      </div>
+                      {!isOwned && (
+                        <div className="absolute -bottom-2 -right-2 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">
+                          未所持
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 組めるバッジ */}
+              {isBuildable && (
+                <div className="absolute top-0 right-0 bg-gradient-to-l from-green-500 to-emerald-400 text-white text-xs font-bold px-4 py-1 rounded-bl-xl shadow-sm">
+                  ✨ 編成可能！
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      
+      {displayParties.length === 0 && (
+         <div className="text-center py-10 bg-white rounded-2xl shadow-sm border border-slate-200">
+           <p className="text-slate-500 font-bold mb-2">組める編成がまだありません。</p>
+           <p className="text-sm text-slate-400">キャラ図鑑で所持キャラをさらに追加してみましょう！</p>
+         </div>
+      )}
+    </div>
+  );
+}
+
+
+// ==========================================
+// 🌟 育成おすすめ画面
+// ==========================================
+function RecommendScreen({ onSelectCharacter, ownedCharacters, onToggleOwned }) {
+  const [showOnlyOwned, setShowOnlyOwned] = useState(false);
+  const [sortMode, setSortMode] = useState('element'); // 'element', 'rank', 'rarity'
+
+  // 基本となるキャラクターリスト（所持フィルターを適用し、表示用の順位を再計算）
+  let baseCharacters = showOnlyOwned 
+    ? CHARACTER_DB.filter(c => ownedCharacters.includes(c.id))
+    : CHARACTER_DB;
+
+  if (showOnlyOwned) {
+    const sortedBase = [...baseCharacters].sort((a, b) => a.overallRank - b.overallRank);
+    baseCharacters = baseCharacters.map(char => ({
+      ...char,
+      currentDisplayRank: sortedBase.findIndex(c => c.id === char.id) + 1
+    }));
+  } else {
+    baseCharacters = baseCharacters.map(char => ({ ...char, currentDisplayRank: char.overallRank }));
+  }
+
+  // 元素別グループ
+  const groupedByElement = Object.values(ELEMENTS).map(element => {
+    return {
+      id: element.id,
+      title: `${element.name}元素のおすすめ`,
+      icon: element.icon,
+      color: element.color,
+      // 各グループ内でも「表示用順位」順に並べる
+      characters: baseCharacters.filter(c => c.element.id === element.id).sort((a, b) => a.currentDisplayRank - b.currentDisplayRank)
+    };
+  }).filter(group => group.characters.length > 0);
+
+  // ランク（優先度）別グループ
+  const rankColors = {
+    'SS': 'bg-gradient-to-r from-yellow-500 to-orange-500',
+    'S': 'bg-gradient-to-r from-red-400 to-pink-500',
+    'A': 'bg-gradient-to-r from-blue-400 to-indigo-500',
+    'B': 'bg-gradient-to-r from-green-400 to-teal-500',
+  };
+  
+  const groupedByRank = ['SS', 'S', 'A', 'B'].map(rank => {
+    return {
+      id: `rank-${rank}`,
+      title: `育成優先度 ${rank} ランク`,
+      icon: '👑',
+      color: rankColors[rank],
+      // 各グループ内でも「表示用順位」順に並べる
+      characters: baseCharacters.filter(c => c.recommendRank === rank).sort((a, b) => a.currentDisplayRank - b.currentDisplayRank)
+    };
+  }).filter(group => group.characters.length > 0);
+
+  // レアリティ（星4・星5）別グループ
+  const rarityColors = {
+    5: 'bg-gradient-to-r from-yellow-400 to-yellow-600',
+    4: 'bg-gradient-to-r from-purple-400 to-purple-600',
+  };
+
+  const groupedByRarity = [5, 4].map(rarity => {
+    return {
+      id: `rarity-${rarity}`,
+      title: `★${rarity} キャラクター`,
+      icon: '✨',
+      color: rarityColors[rarity],
+      characters: baseCharacters.filter(c => c.rarity === rarity).sort((a, b) => a.currentDisplayRank - b.currentDisplayRank)
+    };
+  }).filter(group => group.characters.length > 0);
+
+  const displayGroups = sortMode === 'element' ? groupedByElement : sortMode === 'rank' ? groupedByRank : groupedByRarity;
+
+  return (
+    <div className="animate-fade-in">
+      <div className="mb-8 text-center">
+        <h2 className="text-3xl font-extrabold text-slate-800 mb-2">優先育成キャラクター</h2>
+        <p className="text-slate-500 mb-4">攻略を楽にする、評価の高いキャラクターをピックアップ。</p>
+        
+        {/* フィルターと並び替えのコントロール群 */}
+        <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
+          {/* 所持キャラフィルターのトグル */}
+          <label className="inline-flex items-center cursor-pointer bg-white px-4 py-2 rounded-full shadow-sm border border-slate-200 hover:bg-slate-50 transition-colors">
+            <input 
+              type="checkbox" 
+              className="sr-only peer"
+              checked={showOnlyOwned}
+              onChange={(e) => setShowOnlyOwned(e.target.checked)}
+            />
+            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500 relative mr-3"></div>
+            <span className="text-sm font-bold text-slate-700">所持しているキャラのみ</span>
+          </label>
+
+          {/* 並び替えスイッチ */}
+          <div className="flex bg-slate-200 p-1 rounded-full shadow-inner overflow-x-auto max-w-full">
+            <button
+              onClick={() => setSortMode('element')}
+              className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all whitespace-nowrap ${sortMode === 'element' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              元素別
+            </button>
+            <button
+              onClick={() => setSortMode('rank')}
+              className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all whitespace-nowrap ${sortMode === 'rank' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              優先度順
+            </button>
+            <button
+              onClick={() => setSortMode('rarity')}
+              className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all whitespace-nowrap ${sortMode === 'rarity' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              レアリティ別
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {displayGroups.length === 0 ? (
+        <div className="text-center py-10 bg-white rounded-2xl shadow-sm border border-slate-200">
+          <p className="text-slate-500 font-bold mb-2">該当するキャラクターがいません。</p>
+          <p className="text-sm text-slate-400">「キャラ図鑑」から持っているキャラクターを登録してみましょう！</p>
+        </div>
+      ) : (
+        <div className="space-y-8">
+          {displayGroups.map((group) => (
+            <div key={group.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className={`${group.color} px-4 py-2 flex items-center gap-2`}>
+                <span className="text-xl">{group.icon}</span>
+                <h3 className="text-white font-bold text-lg">{group.title}</h3>
+              </div>
+              <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50">
+                {group.characters.map(char => (
+                  <div 
+                    key={char.id} 
+                    onClick={() => onSelectCharacter(char)}
+                    className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex gap-4 cursor-pointer hover:shadow-md transition-shadow hover:border-blue-300 relative overflow-hidden"
+                  >
+                    {/* 所持切り替えボタン */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation(); // モーダルが開くのを防ぐ
+                        onToggleOwned(char.id);
+                      }}
+                      className={`absolute top-0 right-0 text-[10px] font-bold px-3 py-1 rounded-bl-lg shadow-sm transition-colors z-20 ${
+                        ownedCharacters.includes(char.id)
+                          ? 'bg-blue-500 text-white hover:bg-blue-600'
+                          : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
+                      }`}
+                    >
+                      {ownedCharacters.includes(char.id) ? '✓ 所持' : '＋ 追加'}
+                    </button>
+                    
+                    {/* キャラクターアイコンと順位バッジ */}
+                    <div className="relative shrink-0 mt-1">
+                      {/* ✨ 総合順位バッジ（所持キャラ絞り込み時のみ表示） ✨ */}
+                      {showOnlyOwned && (
+                        <div className={`absolute -top-3 -left-3 w-7 h-7 rounded-full flex items-center justify-center font-extrabold shadow-md z-10 border border-white/50 ${
+                          char.currentDisplayRank === 1 ? 'bg-gradient-to-br from-yellow-300 to-yellow-500 text-white' :
+                          char.currentDisplayRank === 2 ? 'bg-gradient-to-br from-slate-300 to-slate-400 text-white' :
+                          char.currentDisplayRank === 3 ? 'bg-gradient-to-br from-orange-400 to-amber-600 text-white' :
+                          'bg-slate-700 text-white text-xs'
+                        }`}>
+                          {char.currentDisplayRank}
+                        </div>
+                      )}
+                      <div className={`w-16 h-16 rounded-full ${char.element.bgLight} flex items-center justify-center text-3xl border-2 ${char.element.border}`}>
+                        {char.avatar}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-2 mb-1 pr-6">
+                        <h4 className="font-bold text-slate-800 text-lg truncate">{char.name}</h4>
+                        <span className="text-yellow-500 text-sm font-bold flex shrink-0">
+                          {[...Array(char.rarity)].map((_, i) => '★')}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mb-2 font-bold bg-slate-100 inline-block px-2 py-0.5 rounded">
+                        {char.role}
+                      </p>
+                      <p className="text-sm text-slate-600 line-clamp-2">
+                        {char.reason}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==========================================
+// 📚 キャラクター図鑑・素材画面
+// ==========================================
+function CharacterListScreen({ filterElement, setFilterElement, filterWeapon, setFilterWeapon, onSelectCharacter, ownedCharacters, onToggleOwned }) {
+  // 元素と武器種の両方でフィルターをかける
+  const filteredChars = CHARACTER_DB.filter(c => {
+    const matchElement = filterElement === 'ALL' || c.element.id === filterElement;
+    const matchWeapon = filterWeapon === 'ALL' || c.weapon.id === filterWeapon;
+    return matchElement && matchWeapon;
+  });
+
+  return (
+    <div className="animate-fade-in">
+      <div className="mb-6">
+        <h2 className="text-2xl font-extrabold text-slate-800 mb-4">キャラ図鑑</h2>
+        
+        {/* フィルター */}
+        <div className="flex flex-col gap-4 mb-6">
+          {/* 元素フィルター */}
+          <div>
+            <span className="text-xs font-bold text-slate-500 mb-1 block">元素で絞り込み</span>
+            <div className="flex flex-wrap gap-2">
+              <button 
+                onClick={() => setFilterElement('ALL')}
+                className={`px-4 py-2 rounded-full text-sm font-bold border transition-colors ${filterElement === 'ALL' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}
+              >
+                すべて
+              </button>
+              {Object.values(ELEMENTS).map(el => (
+                <button 
+                  key={el.id}
+                  onClick={() => setFilterElement(el.id)}
+                  className={`px-4 py-2 rounded-full text-sm font-bold border flex items-center gap-1 transition-colors ${filterElement === el.id ? `${el.color} text-white border-transparent` : `bg-white ${el.text} border-slate-300 hover:${el.bgLight}`}`}
+                >
+                  <span>{el.icon}</span> {el.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 武器フィルター */}
+          <div>
+            <span className="text-xs font-bold text-slate-500 mb-1 block">武器種で絞り込み</span>
+            <div className="flex flex-wrap gap-2">
+              <button 
+                onClick={() => setFilterWeapon('ALL')}
+                className={`px-4 py-2 rounded-full text-sm font-bold border transition-colors ${filterWeapon === 'ALL' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}
+              >
+                すべて
+              </button>
+              {Object.values(WEAPONS).map(wp => (
+                <button 
+                  key={wp.id}
+                  onClick={() => setFilterWeapon(wp.id)}
+                  className={`px-4 py-2 rounded-full text-sm font-bold border flex items-center gap-1 transition-colors ${filterWeapon === wp.id ? `bg-slate-700 text-white border-slate-700` : `bg-white text-slate-600 border-slate-300 hover:bg-slate-50`}`}
+                >
+                  <span>{wp.icon}</span> {wp.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* グリッド表示 */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+        {filteredChars.map(char => (
+          <div 
+            key={char.id}
+            onClick={() => onSelectCharacter(char)}
+            className={`rounded-2xl shadow-sm border overflow-hidden cursor-pointer hover:shadow-lg hover:-translate-y-1 transition-all group relative ${
+              char.rarity === 5 ? 'bg-gradient-to-b from-yellow-50 to-white border-yellow-300' : 'bg-gradient-to-b from-purple-50 to-white border-purple-300'
+            }`}
+          >
+            {/* 所持切り替えボタン */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation(); // モーダルが開くのを防ぐ
+                onToggleOwned(char.id);
+              }}
+              className={`absolute top-2 left-2 z-20 text-[10px] font-bold px-2 py-1 rounded-full shadow-sm flex items-center gap-1 transition-colors ${
+                ownedCharacters.includes(char.id)
+                  ? 'bg-blue-500 text-white hover:bg-blue-600'
+                  : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
+              }`}
+            >
+              {ownedCharacters.includes(char.id) ? '✓ 所持' : '＋ 追加'}
+            </button>
+            
+            {/* 元素・武器アイコン */}
+            <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
+              <div className="bg-white/80 backdrop-blur-sm w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center shadow-sm" title={`${char.element.name}元素`}>
+                {char.element.icon}
+              </div>
+              <div className="bg-white/80 backdrop-blur-sm w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center shadow-sm" title={char.weapon.name}>
+                {char.weapon.icon}
+              </div>
+            </div>
+
+            <div className={`${char.element.bgLight} aspect-square flex items-center justify-center relative`}>
+              <div className="text-6xl group-hover:scale-110 transition-transform">{char.avatar}</div>
+            </div>
+            <div className={`p-3 text-center border-t ${char.rarity === 5 ? 'border-yellow-200' : 'border-purple-200'}`}>
+              <div className="flex justify-center items-center mb-1">
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm shadow-sm ${char.rarity === 5 ? 'bg-yellow-500 text-white' : 'bg-purple-600 text-white'}`}>
+                  ★{char.rarity}
+                </span>
+              </div>
+              <h3 className="font-bold text-slate-800 truncate">{char.name}</h3>
+            </div>
+          </div>
+        ))}
+      </div>
+      
+      {filteredChars.length === 0 && (
+         <div className="text-center py-10 bg-white rounded-2xl shadow-sm border border-slate-200 mt-4">
+           <p className="text-slate-500 font-bold mb-2">条件に一致するキャラクターがいません。</p>
+         </div>
+      )}
+    </div>
+  );
+}
+
+// ==========================================
+// 🔍 キャラクター詳細モーダル
+// ==========================================
+function CharacterModal({ character, onClose, isOwned, onToggleOwned, ownedCharacters }) {
+  const relatedParties = PARTY_DB.filter(p => p.members.includes(character.id));
+  const [isAttacking, setIsAttacking] = useState(false);
+
+  // ✨ AI編成アドバイス用の状態
+  const [aiAdvice, setAiAdvice] = useState(null);
+  const [isGeneratingAdvice, setIsGeneratingAdvice] = useState(false);
+
+  // 攻撃アニメーションのトリガー
+  const handleAttack = () => {
+    setIsAttacking(true);
+    setTimeout(() => setIsAttacking(false), 400); // アニメーション時間後にリセット
+  };
+
+  // ✨ Gemini APIを使った編成アドバイス生成
+  const handleGenerateAdvice = async () => {
+    setIsGeneratingAdvice(true);
+    
+    // 現在の所持キャラクター名を取得
+    const ownedNames = ownedCharacters
+      .map(id => CHARACTER_DB.find(c => c.id === id)?.name)
+      .filter(Boolean);
+
+    let prompt = "";
+    if (ownedNames.length < 3) {
+      prompt = `私は原神で「${character.name}」を使いたいです。所持キャラが少ないので、${character.name}に合う入手しやすい星4キャラや、配布キャラを活かしたおすすめのパーティ編成と戦い方を教えてください。`;
+    } else {
+      prompt = `私は原神で「${character.name}」を使いたいです。私の所持キャラクターは以下の通りです：\n【${ownedNames.join(', ')}】\nこの所持キャラクターの中で、${character.name}を活かせる最もおすすめのパーティ編成を1つ提案し、その編成での戦い方を簡潔に教えてください。`;
+    }
+
+    const systemInstruction = "あなたは原神のプロプレイヤーです。指定された所持キャラクターの中だけで完結する、強力で実用的なパーティ編成を提案してください。出力は簡潔に、絵文字を使って分かりやすくしてください。";
+
+    const responseText = await callGeminiAPI(prompt, systemInstruction);
+    setAiAdvice(responseText);
+    setIsGeneratingAdvice(false);
+  };
+
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+      {/* 背景クリックで閉じる */}
+      <div className="absolute inset-0" onClick={onClose}></div>
+      
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg relative z-10 overflow-hidden flex flex-col max-h-[90vh]">
+        
+        {/* ⚔️ ヘッダー部分 */}
+        <div className="p-6 text-white relative shrink-0 overflow-hidden bg-slate-900 border-b border-slate-800">
+          <div 
+            className="absolute inset-0 bg-cover bg-center opacity-60 mix-blend-screen transition-transform duration-700 hover:scale-105"
+            style={{ backgroundImage: `url(${character.attackUrl || character.element.sceneUrl})` }}
+          ></div>
+          <div className={`absolute inset-0 ${character.element.color} opacity-60 mix-blend-multiply`}></div>
+          <button 
+            onClick={onClose}
+            className="absolute top-4 right-4 w-8 h-8 bg-black/40 rounded-full flex items-center justify-center hover:bg-black/60 transition-colors z-20 backdrop-blur-sm"
+          >✕</button>
+          
+          <div className="flex items-end gap-5 relative z-10 mt-2">
+            <div className="relative shrink-0">
+              <div className={`w-24 h-24 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-5xl border-4 border-white/70 shadow-[0_0_15px_rgba(255,255,255,0.3)] ${isAttacking ? 'animate-attack' : ''}`}>
+                {character.avatar}
+              </div>
+              <button 
+                onClick={handleAttack}
+                className="absolute -bottom-2 -right-3 bg-yellow-400 text-yellow-900 text-[10px] font-black px-3 py-1 rounded-full shadow-lg hover:bg-yellow-300 hover:scale-110 active:scale-95 transition-transform flex items-center gap-1 border-2 border-white"
+              >▶ ACTION</button>
+            </div>
+            <div className="pb-1 drop-shadow-md">
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <span className="bg-black/40 px-2 py-0.5 rounded text-xs font-bold backdrop-blur-md flex items-center gap-1 border border-white/20">
+                  {character.element.icon} {character.element.name}
+                </span>
+                <span className="bg-black/40 px-2 py-0.5 rounded text-xs font-bold backdrop-blur-md flex items-center gap-1 border border-white/20">
+                  {character.weapon.icon} {character.weapon.name}
+                </span>
+                <span className="text-yellow-400 text-sm font-black flex drop-shadow">
+                  {[...Array(character.rarity)].map((_, i) => '★')}
+                </span>
+              </div>
+              <h2 className="text-3xl font-black tracking-wide">{character.name}</h2>
+              <p className="text-white/90 text-sm font-bold mt-1 bg-black/20 inline-block px-2 py-0.5 rounded backdrop-blur-sm">{character.role}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 所持切り替えボタン */}
+        <div className="bg-slate-100 border-b border-slate-200 p-3 flex justify-between items-center shrink-0">
+          <span className="text-sm font-bold text-slate-600">所持状況</span>
+          <button
+            onClick={onToggleOwned}
+            className={`px-4 py-2 rounded-full text-sm font-bold transition-all flex items-center gap-2 ${
+              isOwned 
+                ? 'bg-blue-500 text-white shadow-md hover:bg-blue-600' 
+                : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-50'
+            }`}
+          >
+            {isOwned ? '✓ 所持しています' : '＋ 所持キャラに追加'}
+          </button>
+        </div>
+
+        {/* スクロール可能なコンテンツ部分 */}
+        <div className="p-6 overflow-y-auto">
+          
+          <div className="mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
+            <h3 className="text-sm font-bold text-slate-400 mb-2 flex items-center gap-2">
+              <span className="text-lg">👑</span> おすすめ理由 / 評価
+            </h3>
+            <p className="text-slate-700 leading-relaxed text-sm">
+              {character.reason}
+            </p>
+          </div>
+
+          <h3 className="text-lg font-bold text-slate-800 mb-4 border-b pb-2">育成ガイド</h3>
+          
+          <div className="space-y-4">
+            <div className="flex gap-4 items-start">
+              <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-500 shrink-0">📚</div>
+              <div>
+                <p className="text-xs font-bold text-slate-500 mb-1">必要な天賦育成素材</p>
+                <p className="font-bold text-slate-800">{character.talentMaterial}</p>
+              </div>
+            </div>
+            <div className="flex gap-4 items-start">
+              <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center text-orange-500 shrink-0">⚔️</div>
+              <div>
+                <p className="text-xs font-bold text-slate-500 mb-1">おすすめ武器</p>
+                <p className="font-bold text-slate-800 text-sm">{character.bestWeapon}</p>
+              </div>
+            </div>
+            <div className="flex gap-4 items-start">
+              <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center text-purple-500 shrink-0">🏺</div>
+              <div className="w-full">
+                <p className="text-xs font-bold text-slate-500 mb-1">おすすめ聖遺物</p>
+                <p className="font-bold text-slate-800 text-sm mb-2">{character.bestArtifact}</p>
+                {character.artifactStats && (
+                  <div className="bg-white p-3 rounded-xl border border-purple-100 text-xs space-y-2 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-start gap-1">
+                      <span className="text-purple-600 font-bold shrink-0 w-12 border-b sm:border-b-0 sm:border-r border-purple-200">メイン</span>
+                      <span className="text-slate-700 font-medium sm:pl-2">{character.artifactStats.main}</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-start gap-1 pt-1 sm:pt-0">
+                      <span className="text-purple-600 font-bold shrink-0 w-12 border-b sm:border-b-0 sm:border-r border-purple-200">サブ</span>
+                      <span className="text-slate-700 font-medium sm:pl-2">{character.artifactStats.sub}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <h3 className="text-lg font-bold text-slate-800 mb-4 border-b pb-2 mt-8">参加するおすすめ編成</h3>
+          
+          {/* ✨ AIによる手持ち編成アドバイスボタン ✨ */}
+          <div className="mb-4">
+            <button
+              onClick={handleGenerateAdvice}
+              disabled={isGeneratingAdvice}
+              className="w-full bg-gradient-to-r from-blue-500 to-teal-400 hover:from-blue-600 hover:to-teal-500 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all text-sm flex justify-center items-center gap-2 disabled:opacity-50"
+            >
+              {isGeneratingAdvice ? '✨ あなたの手持ちを分析中...' : '✨ 所持キャラからAI編成アドバイスをもらう'}
+            </button>
+            {aiAdvice && (
+              <div className="mt-3 bg-gradient-to-br from-blue-50 to-teal-50 border border-teal-200 p-4 rounded-xl shadow-sm animate-fade-in relative">
+                <span className="absolute -top-3 left-4 bg-teal-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">AI賢者のアドバイス</span>
+                <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{aiAdvice}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            {relatedParties.length > 0 ? relatedParties.map(party => {
+              const isBuildable = party.members.every(id => ownedCharacters.includes(id));
+              return (
+                <div key={party.id} className={`p-4 rounded-xl border flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between ${isBuildable ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200'}`}>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-bold text-slate-800">{party.name}</span>
+                      {isBuildable && (
+                        <span className="bg-green-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">組める！</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 line-clamp-1">{party.description}</p>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    {party.members.map((id, idx) => {
+                      const c = CHARACTER_DB.find(char => char.id === id);
+                      return (
+                        <div key={idx} className={`w-8 h-8 rounded-full ${c.element.bgLight} border border-slate-300 flex items-center justify-center text-lg ${!ownedCharacters.includes(id) && 'opacity-40 grayscale'}`} title={c.name}>
+                          {c.avatar}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            }) : (
+              <p className="text-sm text-slate-500 text-center py-2 bg-slate-50 rounded-xl border border-slate-200">このキャラクターが主軸の編成はまだ登録されていません。</p>
+            )}
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// Tailwind用カスタムCSSクラス
+const styles = `
+  .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  /* ⚔️ 攻撃アクション用のアニメーション */
+  .animate-attack { animation: attackAnim 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+  @keyframes attackAnim {
+    0% { transform: translateX(0) scale(1); }
+    20% { transform: translateX(-10px) scale(0.9) rotate(-10deg); }
+    50% { transform: translateX(30px) scale(1.1) rotate(20deg); }
+    80% { transform: translateX(-5px) scale(1) rotate(-5deg); }
+    100% { transform: translateX(0) scale(1) rotate(0); }
+  }
+
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+`;
+if (typeof document !== 'undefined') {
+  const styleSheet = document.createElement("style");
+  styleSheet.innerText = styles;
+  document.head.appendChild(styleSheet);
+}
